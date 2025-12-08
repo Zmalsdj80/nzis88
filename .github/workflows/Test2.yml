@@ -1,0 +1,42 @@
+name: Cloudflare1test
+on:
+  workflow_dispatch:
+
+jobs:
+  rdp:
+    runs-on: windows-latest
+
+    steps:
+    - name: Enable it
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name fDenyTSConnections -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1
+
+    - name: Set runneradmin password
+      run: |
+        Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString "Admin@123" -AsPlainText -Force)
+
+    - name: Download cloudflared
+      run: |
+        Invoke-WebRequest -Uri https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe -OutFile cloudflared.exe
+
+    - name: Start Cloudflare Tunnel
+      run: |
+        Start-Process ".\cloudflared.exe" -ArgumentList "tunnel --no-autoupdate --url rdp://localhost:3389" -RedirectStandardOutput output.log -RedirectStandardError output.log
+        Start-Sleep -Seconds 10
+
+    - name: Extract Tunnel URL
+      run: |
+        $log = Get-Content output.log | Select-String "trycloudflare.com"
+        Write-Host "`n============================="
+        Write-Host " RDP TUNNEL URL:"
+        Write-Host "============================="
+        Write-Host $log
+        Write-Host "`nConnect using:"
+        Write-Host "Host: $($log -replace 'https://','')"
+        Write-Host "User: runneradmin"
+        Write-Host "Pass: Admin@123"
+
+    - name: Keep session alive
+      run: Start-Sleep -Seconds 21600
