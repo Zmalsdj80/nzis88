@@ -1,0 +1,34 @@
+name: Cloudflare
+on:
+  workflow_dispatch:
+
+jobs:
+  rdp:
+    runs-on: windows-latest
+
+    steps:
+    - name: Enable
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+
+    - name: Change Password
+      run: |
+        Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "Admin@123" -Force)
+
+    - name: Download cloudflared
+      run: |
+        Invoke-WebRequest -Uri https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe -OutFile cloudflared.exe
+
+    - name: Start Cloudflare Tunnel (NO LOGIN)
+      run: |
+        Start-Process ".\cloudflared.exe" -ArgumentList "tunnel --no-autoupdate --url rdp://localhost:3389" -NoNewWindow
+        Start-Sleep -Seconds 5
+
+    - name: Show Tunnel URL
+      run: |
+        (Invoke-WebRequest -Uri "http://127.0.0.1:4040/api/tunnels").Content
+
+    - name: Keep Alive
+      run: Start-Sleep -Seconds 21600
